@@ -38,7 +38,7 @@ Observed integration behavior:
 
 ![Request flow](./diagrams/request-flow.svg)
 
-The editable Mermaid source lives in [diagrams/request-flow.mmd](/Users/chrisp/projects/chrisp/myohtml/helix-myohtml/diagrams/request-flow.mmd). The rendered SVG checked into the repo is [diagrams/request-flow.svg](/Users/chrisp/projects/chrisp/myohtml/helix-myohtml/diagrams/request-flow.svg).
+The editable Mermaid source lives in [diagrams/request-flow.mmd](./diagrams/request-flow.mmd). The rendered SVG checked into the repo is [diagrams/request-flow.svg](./diagrams/request-flow.svg).
 
 ## External Interface
 
@@ -120,7 +120,7 @@ The implementation is deliberately lightweight and dependency-free.
 
 ### Request Resolution
 
-[src/index.js](/Users/chrisp/projects/chrisp/myohtml/helix-myohtml/src/index.js) handles:
+[src/index.js](./src/index.js) handles:
 
 - routing
 - health/config/content endpoints
@@ -130,7 +130,7 @@ The implementation is deliberately lightweight and dependency-free.
 
 ### Config Model
 
-[src/lib/config.js](/Users/chrisp/projects/chrisp/myohtml/helix-myohtml/src/lib/config.js) handles:
+[src/lib/config.js](./src/lib/config.js) handles:
 
 - KV key generation
 - config validation and normalization
@@ -141,7 +141,7 @@ The implementation is deliberately lightweight and dependency-free.
 
 ### HTML Composition
 
-[src/lib/compose.js](/Users/chrisp/projects/chrisp/myohtml/helix-myohtml/src/lib/compose.js) handles:
+[src/lib/compose.js](./src/lib/compose.js) handles:
 
 - upstream page fetch
 - embed discovery and replacement
@@ -149,7 +149,7 @@ The implementation is deliberately lightweight and dependency-free.
 - URL rebasing
 - soft-fail omission behavior
 
-[src/lib/html.js](/Users/chrisp/projects/chrisp/myohtml/helix-myohtml/src/lib/html.js) contains the lightweight HTML parsing helpers used by the composer.
+[src/lib/html.js](./src/lib/html.js) contains the lightweight HTML parsing helpers used by the composer.
 
 ## Project Structure
 
@@ -181,7 +181,7 @@ Requirements:
 From the repo root:
 
 ```bash
-cd /Users/chrisp/projects/chrisp/myohtml/helix-myohtml
+cd helix-myohtml
 npm install
 ```
 
@@ -390,9 +390,9 @@ npx wrangler tail helix-myohtml --format json
 
 ## Example Files
 
-- [examples/da-page-with-embed.html](/Users/chrisp/projects/chrisp/myohtml/helix-myohtml/examples/da-page-with-embed.html)
-- [examples/embedded-source.html](/Users/chrisp/projects/chrisp/myohtml/helix-myohtml/examples/embedded-source.html)
-- [examples/composed-output.html](/Users/chrisp/projects/chrisp/myohtml/helix-myohtml/examples/composed-output.html)
-- [examples/config.json](/Users/chrisp/projects/chrisp/myohtml/helix-myohtml/examples/config.json)
-- [diagrams/request-flow.mmd](/Users/chrisp/projects/chrisp/myohtml/helix-myohtml/diagrams/request-flow.mmd)
-- [diagrams/request-flow.svg](/Users/chrisp/projects/chrisp/myohtml/helix-myohtml/diagrams/request-flow.svg)
+- [examples/da-page-with-embed.html](./examples/da-page-with-embed.html)
+- [examples/embedded-source.html](./examples/embedded-source.html)
+- [examples/composed-output.html](./examples/composed-output.html)
+- [examples/config.json](./examples/config.json)
+- [diagrams/request-flow.mmd](./diagrams/request-flow.mmd)
+- [diagrams/request-flow.svg](./diagrams/request-flow.svg)
