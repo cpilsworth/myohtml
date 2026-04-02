@@ -1,8 +1,8 @@
 # `helix-myohtml`
 
-`helix-myohtml` is a Cloudflare Worker that acts as a BYOM HTML composer for an EDS site backed by DA. It fetches the DA HTML document for a page, preserves the DA-owned page shell, finds `embed` blocks inside `<main>`, fetches allowed remote HTML documents, extracts their `<main>` content, and merges that content into the host page.
+`helix-myohtml` is an experimental Cloudflare Worker that acts as a BYOM HTML composer for an EDS site backed by DA. It fetches the DA HTML document for a page, preserves the DA-owned page shell, finds `embed` blocks inside `<main>`, fetches allowed remote HTML documents, extracts their `<main>` content, and merges that content into the host page.
 
-The service shape is intentionally close to `helix-json2html`: simple Worker entrypoint, KV-backed config, branch-aware configuration storage, and a request model that can sit directly in front of DA/EDS as the content source.
+The service uses a simple Worker entrypoint, KV-backed config, branch-aware configuration storage, and a request model that can sit directly in front of DA/EDS as the content source. It should be treated as a prototype for validating composition of multiple sources within a BYOM flow rather than a hardened production service.
 
 ## Purpose
 
@@ -63,7 +63,7 @@ Example:
 {
   "embeds": {
     "allowedOrigins": [
-      "https://json2html.adobeaem.workers.dev"
+      "https://fragments.example.com"
     ],
     "maxDepth": 2,
     "timeoutMs": 3000,
@@ -314,7 +314,7 @@ The minimal stored config shape is:
 {
   "embeds": {
     "allowedOrigins": [
-      "https://json2html.adobeaem.workers.dev"
+      "https://fragments.example.com"
     ],
     "maxDepth": 2,
     "timeoutMs": 3000,

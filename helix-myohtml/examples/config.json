@@ -5,9 +5,7 @@
   },
   "embeds": {
     "allowedOrigins": [
-      "https://json2html.adobeaem.workers.dev",
-      "https://main--myohtml--cpilsworth.aem.page",
-      "https://main--myohtml--cpilsworth.aem.live"
+      "https://json2html.adobeaem.workers.dev"
     ],
     "maxDepth": 2,
     "timeoutMs": 3000,
