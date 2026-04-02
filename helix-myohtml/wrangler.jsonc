@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "helix-myohtml",
+  "main": "src/index.js",
+  "compatibility_date": "2026-04-02",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "kv_namespaces": [
+    {
+      "binding": "CONFIGS",
+      "id": "a6613a6211aa4cf3a8d97d2488b85ba3",
+      "preview_id": "a6613a6211aa4cf3a8d97d2488b85ba3"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "upstream": {
+    "baseUrl": "https://content.da.live/cpilsworth/myohtml",
+    "forwardHeaders": ["Authorization"]
+  },
+  "embeds": {
+    "allowedOrigins": [
+      "https://json2html.adobeaem.workers.dev",
+      "https://main--myohtml--cpilsworth.aem.page",
+      "https://main--myohtml--cpilsworth.aem.live"
+    ],
+    "maxDepth": 2,
+    "timeoutMs": 3000,
+    "onError": "omit"
+  }
+}

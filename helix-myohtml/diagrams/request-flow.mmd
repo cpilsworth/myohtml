@@ -1,0 +1,8 @@
+flowchart LR
+  da[DA / Preview / Live] -->|GET /owner/site/path| worker[helix-myohtml Worker]
+  worker -->|Optional KV lookup for site overrides| kv[(CONFIGS KV)]
+  worker -->|Fetch host DA HTML from inferred or overridden upstream| bus[DA Content Bus]
+  worker -->|Fetch allowlisted embed URLs| remote[Allowed HTML Sources]
+  remote -->|main-only HTML| worker
+  bus -->|Host HTML shell| worker
+  worker -->|Composed BYOM HTML| da
