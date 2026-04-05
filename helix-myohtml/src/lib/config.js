@@ -15,8 +15,9 @@ export function normalizeStoredConfig(input) {
 
   const upstream = normalizeUpstream(input.upstream);
   const embeds = normalizeEmbeds(input.embeds);
+  const plugins = normalizePlugins(input.plugins);
 
-  return { upstream, embeds };
+  return { upstream, embeds, plugins };
 }
 
 export async function loadConfig(env, target) {
@@ -93,6 +94,10 @@ export function isConfigRoute(pathname) {
   return segments.length === 4 && segments[0] === 'config';
 }
 
+export function isContentUpdatedEventRoute(pathname) {
+  return pathname === '/events/content-updated';
+}
+
 export function parseConfigRoute(pathname) {
   const segments = pathname.split('/').filter(Boolean);
   if (segments.length !== 4 || segments[0] !== 'config') {
@@ -104,26 +109,11 @@ export function parseConfigRoute(pathname) {
 }
 
 export function ensureConfigWriteAuthorized(request, env) {
-  const expectedToken = env?.CONFIG_API_TOKEN;
-  if (!expectedToken) {
-    return;
-  }
+  ensureWriteAuthorized(request, env?.CONFIG_API_TOKEN);
+}
 
-  const rawAuthorization = request.headers.get('authorization') || '';
-  const normalized = rawAuthorization.trim();
-  const accepted = [
-    `Bearer ${expectedToken}`,
-    `token ${expectedToken}`,
-  ];
-
-  if (!accepted.includes(normalized)) {
-    throw new Response(JSON.stringify({ error: 'Unauthorized.' }), {
-      status: 401,
-      headers: {
-        'content-type': 'application/json; charset=UTF-8',
-      },
-    });
-  }
+export function ensureRippleEventAuthorized(request, env) {
+  ensureWriteAuthorized(request, env?.RIPPLE_API_TOKEN);
 }
 
 export function buildImplicitSiteConfig(owner, site, storedConfig = null) {
@@ -141,6 +131,7 @@ export function buildImplicitSiteConfig(owner, site, storedConfig = null) {
       timeoutMs: storedConfig?.embeds?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
       onError: storedConfig?.embeds?.onError ?? DEFAULT_ON_ERROR,
     },
+    plugins: storedConfig?.plugins ?? [],
   };
 
   return normalizeStoredConfig(config);
@@ -252,4 +243,70 @@ function normalizePositiveInteger(value, fallback, fieldName) {
 
 function dedupeOrigins(values) {
   return [...new Set(values)];
+}
+
+function normalizePlugins(input) {
+  if (input == null) {
+    return [];
+  }
+
+  if (!Array.isArray(input)) {
+    throw new TypeError('plugins must be an array when provided.');
+  }
+
+  return input.map((plugin) => normalizePlugin(plugin));
+}
+
+function normalizePlugin(input) {
+  if (typeof input === 'string' && input.trim()) {
+    return {
+      name: input.trim(),
+      enabled: true,
+      config: {},
+    };
+  }
+
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new TypeError('plugins entries must be strings or objects.');
+  }
+
+  if (!input.name || typeof input.name !== 'string') {
+    throw new TypeError('plugins entries require a string name.');
+  }
+
+  if (input.enabled != null && typeof input.enabled !== 'boolean') {
+    throw new TypeError('plugins.enabled must be a boolean when provided.');
+  }
+
+  if (input.config != null && (typeof input.config !== 'object' || Array.isArray(input.config))) {
+    throw new TypeError('plugins.config must be an object when provided.');
+  }
+
+  return {
+    name: input.name.trim(),
+    enabled: input.enabled ?? true,
+    config: input.config ?? {},
+  };
+}
+
+function ensureWriteAuthorized(request, expectedToken) {
+  if (!expectedToken) {
+    return;
+  }
+
+  const rawAuthorization = request.headers.get('authorization') || '';
+  const normalized = rawAuthorization.trim();
+  const accepted = [
+    `Bearer ${expectedToken}`,
+    `token ${expectedToken}`,
+  ];
+
+  if (!accepted.includes(normalized)) {
+    throw new Response(JSON.stringify({ error: 'Unauthorized.' }), {
+      status: 401,
+      headers: {
+        'content-type': 'application/json; charset=UTF-8',
+      },
+    });
+  }
 }

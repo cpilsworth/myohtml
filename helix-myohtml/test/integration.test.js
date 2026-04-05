@@ -295,6 +295,7 @@ async function configuredEnv() {
           timeoutMs: 3000,
           onError: 'omit',
         },
+        plugins: [],
       }),
     }),
     env,

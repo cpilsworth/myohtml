@@ -155,6 +155,46 @@ test('POST /config accepts embed-only config for owner/site routes', async () =>
   assert.deepEqual(payload.config.embeds.allowedOrigins, ['https://allowed.example.com']);
 });
 
+test('POST /config stores optional plugin configuration', async () => {
+  const env = { CONFIGS: new MemoryKVNamespace() };
+
+  const response = await handleRequest(
+    new Request('https://composer.example.com/config/cpilsworth/myohtml/main', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        embeds: {
+          allowedOrigins: ['https://allowed.example.com'],
+        },
+        plugins: [
+          {
+            name: 'embed-ripple',
+            enabled: true,
+            config: {
+              mode: 'plan',
+            },
+          },
+        ],
+      }),
+    }),
+    env,
+  );
+
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.deepEqual(payload.config.plugins, [
+    {
+      name: 'embed-ripple',
+      enabled: true,
+      config: {
+        mode: 'plan',
+      },
+    },
+  ]);
+});
+
 test('GET composes allowed embed content in place and preserves host chrome', async () => {
   const env = await configuredEnv();
   globalThis.fetch = async (input) => {
@@ -292,6 +332,74 @@ test('site route derives upstream and auto-allows main preview/live origins', as
   assert.match(html, /https:\/\/main--myohtml--cpilsworth\.aem\.live\/fragments\/download\.pdf/);
 });
 
+test('plugin: embed-ripple records dependencies for composed pages', async () => {
+  const env = await configuredEnv({
+    plugins: ['embed-ripple'],
+  });
+  env.DEPENDENCIES = new MemoryKVNamespace();
+
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url === 'https://da.example.com/content/articles/launch.html') {
+      return htmlResponse(HOST_PAGE);
+    }
+    if (url === 'https://allowed.example.com/imported/feature.html') {
+      return htmlResponse(EMBED_PAGE);
+    }
+    throw new Error(`Unexpected fetch to ${url}`);
+  };
+
+  const response = await handleRequest(
+    new Request('https://composer.example.com/cpilsworth/myohtml/articles/launch.html'),
+    env,
+  );
+
+  assert.equal(response.status, 200);
+
+  const byPage = JSON.parse(
+    await env.DEPENDENCIES.get('deps:v1:page:cpilsworth/myohtml/main/articles/launch.html'),
+  );
+  const bySource = JSON.parse(
+    await env.DEPENDENCIES.get(encodeSourceDependencyKey('url:https://allowed.example.com/imported/feature.html')),
+  );
+
+  assert.deepEqual(byPage, ['url:https://allowed.example.com/imported/feature.html']);
+  assert.deepEqual(bySource, ['/articles/launch.html']);
+});
+
+test('POST /events/content-updated returns a ripple plan for affected pages', async () => {
+  const env = await configuredEnv({
+    plugins: ['embed-ripple'],
+  });
+  env.DEPENDENCIES = new MemoryKVNamespace();
+  await env.DEPENDENCIES.put(
+    encodeSourceDependencyKey('site-path:cpilsworth/myohtml/main/fragments/test'),
+    JSON.stringify(['/articles/launch.html', '/']),
+  );
+
+  const response = await handleRequest(
+    new Request('https://composer.example.com/events/content-updated', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        owner: 'cpilsworth',
+        site: 'myohtml',
+        path: '/fragments/test',
+        action: 'preview',
+      }),
+    }),
+    env,
+  );
+
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.deepEqual(payload.plugins, ['embed-ripple']);
+  assert.deepEqual(payload.ripple.affectedPages, ['/', '/articles/launch.html']);
+  assert.equal(payload.ripple.mode, 'plan');
+});
+
 async function configuredEnv(overrides = {}) {
   const env = {
     CONFIGS: new MemoryKVNamespace(),
@@ -315,6 +423,7 @@ async function configuredEnv(overrides = {}) {
           onError: 'omit',
           ...(overrides.embeds || {}),
         },
+        plugins: overrides.plugins || [],
         ...(overrides.upstream ? { upstream: { ...overrides.upstream } } : {}),
       }),
     }),
@@ -332,4 +441,8 @@ function htmlResponse(body) {
       'content-type': 'text/html; charset=UTF-8',
     },
   });
+}
+
+function encodeSourceDependencyKey(sourceId) {
+  return `deps:v1:source:${encodeURIComponent(sourceId)}`;
 }

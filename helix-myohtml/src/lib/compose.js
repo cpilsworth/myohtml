@@ -7,7 +7,7 @@ import {
   stripImportedMarkup,
 } from './html.js';
 
-export async function composePage({ request, html, upstreamUrl, config }) {
+export async function composePage({ request, html, upstreamUrl, config, hooks = {} }) {
   const main = extractMain(html);
   if (!main) {
     return html;
@@ -19,6 +19,7 @@ export async function composePage({ request, html, upstreamUrl, config }) {
     baseUrl: upstreamUrl,
     config,
     depth: 0,
+    hooks,
   });
 
   return replaceMain(html, composedMain);
@@ -38,7 +39,7 @@ export async function fetchUpstreamPage({ request, contentPath, config }) {
   };
 }
 
-async function composeFragment({ request, fragment, baseUrl, config, depth }) {
+async function composeFragment({ request, fragment, baseUrl, config, depth, hooks }) {
   const embedBlocks = findEmbedBlocks(fragment);
   if (!embedBlocks.length) {
     return fragment;
@@ -55,6 +56,7 @@ async function composeFragment({ request, fragment, baseUrl, config, depth }) {
       parentUrl: baseUrl,
       config,
       depth,
+      hooks,
     });
     cursor = block.end;
   }
@@ -63,7 +65,7 @@ async function composeFragment({ request, fragment, baseUrl, config, depth }) {
   return output;
 }
 
-async function resolveEmbedBlock({ request, blockHtml, parentUrl, config, depth }) {
+async function resolveEmbedBlock({ request, blockHtml, parentUrl, config, depth, hooks }) {
   const nextDepth = depth + 1;
   if (nextDepth > config.embeds.maxDepth) {
     return '';
@@ -77,6 +79,10 @@ async function resolveEmbedBlock({ request, blockHtml, parentUrl, config, depth 
   const embedUrl = new URL(href, parentUrl);
   if (!config.embeds.allowedOrigins.includes(embedUrl.origin)) {
     return '';
+  }
+
+  if (typeof hooks.onEmbedResolved === 'function') {
+    await hooks.onEmbedResolved(embedUrl.href);
   }
 
   try {
@@ -99,6 +105,7 @@ async function resolveEmbedBlock({ request, blockHtml, parentUrl, config, depth 
       baseUrl: responseUrl,
       config,
       depth: nextDepth,
+      hooks,
     });
 
     return rebaseRelativeUrls(recursivelyComposed, responseUrl);

@@ -1,6 +1,8 @@
 import {
   buildImplicitSiteConfig,
   ensureConfigWriteAuthorized,
+  ensureRippleEventAuthorized,
+  isContentUpdatedEventRoute,
   isConfigRoute,
   loadConfig,
   parseConfigRoute,
@@ -10,6 +12,7 @@ import {
   storeConfig,
 } from './lib/config.js';
 import { composePage, fetchUpstreamPage } from './lib/compose.js';
+import { createExtensionRuntime } from './lib/extensions.js';
 
 const LOGGED_REQUEST_HEADERS = [
   'accept',
@@ -83,6 +86,10 @@ export async function handleRequest(request, env) {
     return handleConfigWrite(request, env, url.pathname);
   }
 
+  if (request.method === 'POST' && isContentUpdatedEventRoute(url.pathname)) {
+    return handleContentUpdatedEvent(request, env);
+  }
+
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     return json({ error: 'Method Not Allowed' }, 405, {
       Allow: 'GET,HEAD,POST',
@@ -113,6 +120,12 @@ async function handleContentRequest(request, env, pathname) {
   }
 
   const { target, config, contentPath } = resolved;
+  const extensions = createExtensionRuntime({
+    env,
+    target,
+    config,
+    contentPath,
+  });
   const requestLogContext = {
     event: 'content_request',
     request: describeRequest(request, pathname),
@@ -122,6 +135,7 @@ async function handleContentRequest(request, env, pathname) {
       upstreamBaseUrl: config.upstream.baseUrl,
       allowedOrigins: config.embeds.allowedOrigins,
       maxDepth: config.embeds.maxDepth,
+      plugins: extensions.activePluginNames,
     },
   };
 
@@ -164,7 +178,11 @@ async function handleContentRequest(request, env, pathname) {
     html,
     upstreamUrl,
     config,
+    hooks: {
+      onEmbedResolved: (embedUrl) => extensions.trackDependency(embedUrl),
+    },
   });
+  await extensions.finalizeComposition();
 
   if (request.method === 'HEAD') {
     return new Response(null, {
@@ -176,6 +194,57 @@ async function handleContentRequest(request, env, pathname) {
   return new Response(composed, {
     status: response.status,
     headers: responseHeaders(response.headers),
+  });
+}
+
+async function handleContentUpdatedEvent(request, env) {
+  ensureRippleEventAuthorized(request, env);
+
+  const body = await request.json();
+  const owner = body?.owner;
+  const site = body?.site;
+  const branch = body?.branch || 'main';
+  const path = body?.path;
+  const action = body?.action || 'preview';
+
+  if (!owner || !site || !path) {
+    return json({
+      error: 'owner, site, and path are required.',
+    }, 400);
+  }
+
+  if (!['preview', 'publish'].includes(action)) {
+    return json({
+      error: 'action must be "preview" or "publish".',
+    }, 400);
+  }
+
+  const target = { org: owner, site, branch };
+  const storedConfig = env?.CONFIGS ? await loadConfig(env, target) : null;
+  const config = buildImplicitSiteConfig(owner, site, storedConfig);
+  const extensions = createExtensionRuntime({
+    env,
+    target,
+    config,
+    contentPath: path,
+  });
+
+  const ripple = await extensions.planContentUpdate({ path, action });
+
+  return json({
+    ok: true,
+    event: {
+      owner,
+      site,
+      branch,
+      path,
+      action,
+    },
+    plugins: extensions.activePluginNames,
+    ripple: {
+      mode: 'plan',
+      ...ripple,
+    },
   });
 }
 
