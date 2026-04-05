@@ -13,6 +13,11 @@
       "binding": "CONFIGS",
       "id": "a6613a6211aa4cf3a8d97d2488b85ba3",
       "preview_id": "a6613a6211aa4cf3a8d97d2488b85ba3"
+    },
+    {
+      "binding": "DEPENDENCIES",
+      "id": "db05c827ce4149168dce76c8049d06ca",
+      "preview_id": "db05c827ce4149168dce76c8049d06ca"
     }
   ]
 }
