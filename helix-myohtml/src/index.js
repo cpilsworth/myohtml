@@ -178,6 +178,7 @@ async function handleContentRequest(request, env, pathname) {
     html,
     upstreamUrl,
     config,
+    target,
     hooks: {
       onEmbedResolved: (embedUrl) => extensions.trackDependency(embedUrl),
     },

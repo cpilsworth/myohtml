@@ -1,3 +1,4 @@
+import { buildAutoAllowedOrigins } from './config.js';
 import {
   extractFirstHref,
   extractMain,
@@ -7,7 +8,14 @@ import {
   stripImportedMarkup,
 } from './html.js';
 
-export async function composePage({ request, html, upstreamUrl, config, hooks = {} }) {
+export async function composePage({
+  request,
+  html,
+  upstreamUrl,
+  config,
+  target = null,
+  hooks = {},
+}) {
   const main = extractMain(html);
   if (!main) {
     return html;
@@ -19,6 +27,7 @@ export async function composePage({ request, html, upstreamUrl, config, hooks = 
     baseUrl: upstreamUrl,
     config,
     depth: 0,
+    target,
     hooks,
   });
 
@@ -39,7 +48,7 @@ export async function fetchUpstreamPage({ request, contentPath, config }) {
   };
 }
 
-async function composeFragment({ request, fragment, baseUrl, config, depth, hooks }) {
+async function composeFragment({ request, fragment, baseUrl, config, depth, target, hooks }) {
   const embedBlocks = findEmbedBlocks(fragment);
   if (!embedBlocks.length) {
     return fragment;
@@ -56,6 +65,7 @@ async function composeFragment({ request, fragment, baseUrl, config, depth, hook
       parentUrl: baseUrl,
       config,
       depth,
+      target,
       hooks,
     });
     cursor = block.end;
@@ -65,7 +75,15 @@ async function composeFragment({ request, fragment, baseUrl, config, depth, hook
   return output;
 }
 
-async function resolveEmbedBlock({ request, blockHtml, parentUrl, config, depth, hooks }) {
+async function resolveEmbedBlock({
+  request,
+  blockHtml,
+  parentUrl,
+  config,
+  depth,
+  target,
+  hooks,
+}) {
   const nextDepth = depth + 1;
   if (nextDepth > config.embeds.maxDepth) {
     return '';
@@ -76,7 +94,7 @@ async function resolveEmbedBlock({ request, blockHtml, parentUrl, config, depth,
     return '';
   }
 
-  const embedUrl = new URL(href, parentUrl);
+  const embedUrl = rewriteSameSiteEmbedUrl(new URL(href, parentUrl), request, target);
   if (!config.embeds.allowedOrigins.includes(embedUrl.origin)) {
     return '';
   }
@@ -105,6 +123,7 @@ async function resolveEmbedBlock({ request, blockHtml, parentUrl, config, depth,
       baseUrl: responseUrl,
       config,
       depth: nextDepth,
+      target,
       hooks,
     });
 
@@ -152,5 +171,111 @@ async function fetchWithTimeout(url, timeoutMs) {
     return await fetch(url, { signal: controller.signal });
   } finally {
     clearTimeout(timer);
+  }
+}
+
+function rewriteSameSiteEmbedUrl(embedUrl, request, target) {
+  if (!target) {
+    return embedUrl;
+  }
+
+  const desiredOrigin = resolveDesiredSameSiteOrigin(request, target);
+  if (!desiredOrigin) {
+    return embedUrl;
+  }
+
+  const sameSiteOrigins = new Set([
+    ...buildAutoAllowedOrigins(target.org, target.site),
+    'https://content.da.live',
+  ]);
+
+  if (!sameSiteOrigins.has(embedUrl.origin)) {
+    return embedUrl;
+  }
+
+  if (embedUrl.origin === 'https://content.da.live') {
+    const prefix = `/${target.org}/${target.site}`;
+    if (!embedUrl.pathname.startsWith(prefix)) {
+      return embedUrl;
+    }
+
+    const rewritten = new URL(embedUrl.toString());
+    rewritten.protocol = new URL(desiredOrigin).protocol;
+    rewritten.host = new URL(desiredOrigin).host;
+    rewritten.pathname = embedUrl.pathname.slice(prefix.length) || '/';
+    return rewritten;
+  }
+
+  const rewritten = new URL(embedUrl.toString());
+  rewritten.protocol = new URL(desiredOrigin).protocol;
+  rewritten.host = new URL(desiredOrigin).host;
+  return rewritten;
+}
+
+function resolveDesiredSameSiteOrigin(request, target) {
+  const previewOrigin = `https://main--${target.site}--${target.org}.aem.page`;
+  const liveOrigin = `https://main--${target.site}--${target.org}.aem.live`;
+
+  const explicitMode = normalizeModeHint(request.headers.get('x-da-mode'));
+  if (explicitMode === 'preview') {
+    return previewOrigin;
+  }
+  if (explicitMode === 'live') {
+    return liveOrigin;
+  }
+
+  for (const headerName of ['referer', 'origin']) {
+    const value = request.headers.get(headerName);
+    if (!value) {
+      continue;
+    }
+
+    const hostMode = inferModeFromHost(safeHostname(value));
+    if (hostMode === 'preview') {
+      return previewOrigin;
+    }
+    if (hostMode === 'live') {
+      return liveOrigin;
+    }
+  }
+
+  const forwardedHostMode = inferModeFromHost(request.headers.get('x-forwarded-host'));
+  if (forwardedHostMode === 'preview') {
+    return previewOrigin;
+  }
+  if (forwardedHostMode === 'live') {
+    return liveOrigin;
+  }
+
+  return null;
+}
+
+function normalizeModeHint(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (['preview', 'author', 'edit', 'editor'].includes(normalized)) {
+    return 'preview';
+  }
+  if (['publish', 'live', 'production'].includes(normalized)) {
+    return 'live';
+  }
+  return null;
+}
+
+function inferModeFromHost(hostname) {
+  const normalized = String(hostname || '').toLowerCase();
+  if (normalized.includes('.aem.page')) {
+    return 'preview';
+  }
+  if (normalized.includes('.aem.live')) {
+    return 'live';
+  }
+  return null;
+}
+
+function safeHostname(value) {
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return value;
   }
 }

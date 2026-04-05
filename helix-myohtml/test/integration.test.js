@@ -61,6 +61,17 @@ const FRAGMENT_WITH_RELATIVE_LINK = `<!DOCTYPE html>
   </body>
 </html>`;
 
+const PAGE_WITH_LIVE_FRAGMENT = `<!DOCTYPE html>
+<html>
+  <body>
+    <main>
+      <div class="embed">
+        <p><a href="https://main--myohtml--cpilsworth.aem.live/fragments/test">Live fragment</a></p>
+      </div>
+    </main>
+  </body>
+</html>`;
+
 let originalFetch;
 
 beforeEach(() => {
@@ -173,6 +184,74 @@ test('integration: preview fragment links and assets are rebased against the fra
   assert.match(html, /https:\/\/main--myohtml--cpilsworth\.aem\.page\/media\/diagram\.png/);
 });
 
+test('integration: preview requests rewrite same-site fragment URLs to .aem.page', async () => {
+  const env = await configuredEnv();
+  const seenUrls = [];
+
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    seenUrls.push(url);
+    if (url === 'https://content.da.live/cpilsworth/myohtml/') {
+      return htmlResponse(PAGE_WITH_LIVE_FRAGMENT);
+    }
+
+    if (url === 'https://main--myohtml--cpilsworth.aem.page/fragments/test') {
+      return htmlResponse(FRAGMENT_DOCUMENT);
+    }
+
+    throw new Error(`Unexpected fetch to ${url}`);
+  };
+
+  const response = await handleRequest(
+    new Request('https://composer.example.com/cpilsworth/myohtml/', {
+      headers: {
+        'X-Da-Mode': 'preview',
+      },
+    }),
+    env,
+  );
+
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(html, /this is a test fragment/);
+  assert.ok(seenUrls.includes('https://main--myohtml--cpilsworth.aem.page/fragments/test'));
+  assert.ok(!seenUrls.includes('https://main--myohtml--cpilsworth.aem.live/fragments/test'));
+});
+
+test('integration: publish requests rewrite same-site fragment URLs to .aem.live', async () => {
+  const env = await configuredEnv();
+  const seenUrls = [];
+
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    seenUrls.push(url);
+    if (url === 'https://content.da.live/cpilsworth/myohtml/') {
+      return htmlResponse(PAGE_WITH_PREVIEW_FRAGMENT);
+    }
+
+    if (url === 'https://main--myohtml--cpilsworth.aem.live/fragments/test') {
+      return htmlResponse(FRAGMENT_DOCUMENT);
+    }
+
+    throw new Error(`Unexpected fetch to ${url}`);
+  };
+
+  const response = await handleRequest(
+    new Request('https://composer.example.com/cpilsworth/myohtml/', {
+      headers: {
+        'X-Da-Mode': 'publish',
+      },
+    }),
+    env,
+  );
+
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(html, /this is a test fragment/);
+  assert.ok(seenUrls.includes('https://main--myohtml--cpilsworth.aem.live/fragments/test'));
+  assert.ok(!seenUrls.includes('https://main--myohtml--cpilsworth.aem.page/fragments/test'));
+});
+
 test('integration: missing preview fragment is omitted without failing the host page', async () => {
   const env = await configuredEnv();
 
@@ -244,14 +323,19 @@ test('integration: unauthenticated DA upstream failure returns 502 from the work
 
 test('spec: backend preview and publish requests compose embedded fragment content', async () => {
   const env = await configuredEnv();
+  const seenUrls = [];
 
   globalThis.fetch = async (input) => {
     const url = String(input);
+    seenUrls.push(url);
     if (url === 'https://content.da.live/cpilsworth/myohtml/') {
       return htmlResponse(PAGE_WITH_PREVIEW_FRAGMENT);
     }
 
-    if (url === 'https://main--myohtml--cpilsworth.aem.page/fragments/test') {
+    if (
+      url === 'https://main--myohtml--cpilsworth.aem.page/fragments/test'
+      || url === 'https://main--myohtml--cpilsworth.aem.live/fragments/test'
+    ) {
       return htmlResponse(FRAGMENT_DOCUMENT);
     }
 
@@ -275,6 +359,9 @@ test('spec: backend preview and publish requests compose embedded fragment conte
     assert.match(html, /this is a test fragment/);
     assert.doesNotMatch(html, /<div class="embed">/);
   }
+
+  assert.ok(seenUrls.includes('https://main--myohtml--cpilsworth.aem.page/fragments/test'));
+  assert.ok(seenUrls.includes('https://main--myohtml--cpilsworth.aem.live/fragments/test'));
 });
 
 async function configuredEnv() {
