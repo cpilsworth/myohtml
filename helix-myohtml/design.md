@@ -354,6 +354,35 @@ Example response shape:
 }
 ```
 
+### Specific safety constraint
+
+Automatic ripple publish is unsafe by default.
+
+The reason is specific:
+
+- a page can embed fragment `X`
+- that same page can also contain unrelated author edits that have not been published yet
+- if a fragment publish event automatically republishes the dependent page, the system publishes the whole page state, not just the fragment contribution
+
+That means a fragment-triggered page publish can accidentally ship unrelated draft changes.
+
+So the default safety rule for this project should be:
+
+- fragment update may automatically refresh dependent preview pages
+- fragment publish must not automatically republish dependent pages unless there is an explicit guarantee that the page has no unrelated unpublished changes
+
+In practical terms, the safe default policy is:
+
+- `preview` ripple: `execute`
+- `publish` ripple: `plan`
+
+That yields the operational behavior we actually want:
+
+- preview stays fresh automatically
+- publish remains explicit and reviewable
+
+Only after there is a reliable “clean page” check should auto-publish even be considered.
+
 ### Why it is plan-only
 
 The hard part of ripple is not dependency discovery. The hard part is the side effect.
